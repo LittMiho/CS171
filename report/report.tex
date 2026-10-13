@@ -101,6 +101,25 @@
   $[-89^\circ,89^\circ]$ to avoid the singularity when the camera looks
   directly along the up axis.  Pressing Escape closes the window.
 
+  \subsection{Multiple Objects and Motion}
+  The scene is not limited to a single mesh.  The program creates several
+  \texttt{ScreenObject} entries, each storing a mesh pointer, a model matrix,
+  a position, a velocity, a scale, a normal matrix, and an object color.  These
+  entries are placed in a \texttt{std::array<ScreenObject, 3>} and rendered in a
+  single loop.  This allows the same shader pipeline to be reused for multiple
+  meshes, while still keeping each object's transform data independent.
+
+  At every frame, the model matrix is recomputed from the object's current
+  position and scale, and the normal matrix is updated accordingly.  The camera
+  and light parameters are then uploaded to the shader as uniforms before the
+  meshes are drawn.  A simple animation is also included by updating each
+  object's position with velocity multiplied by the elapsed time:
+  \[
+    \mathbf{p}_{t+1} = \mathbf{p}_t + \mathbf{v}\,\Delta t.
+  \]
+  This makes the objects move smoothly across the scene while maintaining a
+  consistent transformation pipeline for each rendered mesh.
+
   \section{Results}
   When executed, the application opens a $1280\times720$ GLFW window and
   renders the sphere against a blue-gray background.  The depth buffer is
@@ -117,6 +136,20 @@
   the program demonstrates the complete path from mesh-file data, through
   OpenGL buffers and shader stages, to a depth-tested, interactively viewed
   image.
+
+  \section{Build Diagnostics and Fix Note}
+  During the compilation stage, the project initially failed in the object-update
+  loop inside the main rendering routine.  The compiler reported that the
+  assignment and compound-assignment operators were unavailable for the loop
+  variable, indicating that the object was treated as a constant copy rather
+  than a mutable element of the array.  In particular, the loop used
+  \texttt{for (auto const object : objects)}, which prevents updates to
+  \texttt{object.model}, \texttt{object.normalMatrix}, and
+  \texttt{object.position}.  The correct pattern is to iterate by reference,
+  \texttt{for (auto \&object : objects)}, so that the position, velocity, and
+  model matrix can be recomputed each frame.  This fix resolves the reported
+  \texttt{operator=} and \texttt{operator+=} errors and allows the animation and
+  per-frame matrix updates to proceed normally.
 
   \section{Conclusion}
   This assignment provided practical experience with the core components of an

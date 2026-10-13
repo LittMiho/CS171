@@ -28,6 +28,7 @@
 #include "Window.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 
@@ -55,9 +56,36 @@ struct Camera {
   }
 };
 
+struct ScreenObject {
+  Mesh const *mesh;
+  Mat4f<>::AsStorage model;
+  Vec3f<>::AsStorage position;
+  Vec3f<>::AsStorage velocity;
+  Vec3f<>::AsStorage scale;
+  Mat3f<>::AsStorage normalMatrix;
+  Vec3f<>::AsStorage color;
+};
+
 Vec3f<>::AsStorage Normalize(Vec3f<>::AsStorage const &value) {
   auto const length = value.Norm();
   return Vec3f<>::AsStorage{value(0) / length, value(1) / length, value(2) / length};
+}
+
+Mat4f<>::AsStorage ModelMatrix(Vec3f<>::AsStorage const &position, Vec3f<>::AsStorage const &scale) {
+  return Mat4f<>::AsStorage{
+      Vec4f<>::AsStorage{scale(0), 0.0F, 0.0F, 0.0F},
+      Vec4f<>::AsStorage{0.0F, scale(1), 0.0F, 0.0F},
+      Vec4f<>::AsStorage{0.0F, 0.0F, scale(2), 0.0F},
+      Vec4f<>::AsStorage{position(0), position(1), position(2), 1.0F},
+  };
+}
+
+Mat3f<>::AsStorage NormalMatrix(Vec3f<>::AsStorage const &scale) {
+  return Mat3f<>::AsStorage{
+      Vec3f<>::AsStorage{1.0F / scale(0), 0.0F, 0.0F},
+      Vec3f<>::AsStorage{0.0F, 1.0F / scale(1), 0.0F},
+      Vec3f<>::AsStorage{0.0F, 0.0F, 1.0F / scale(2)},
+  };
 }
 
 Mat4f<>::AsStorage LookAt(Camera const &camera) {
@@ -125,26 +153,48 @@ void MouseCallback(GLFWwindow *window, double xpos, double ypos) {
 
 void Main() {
   Window window{Vec2u{1280U, 720U}, "CS171 Homework 1"};
-  Mesh mesh{"assets/Sphere.object"};
+  Mesh Sphere{"assets/Sphere.object"};
+  Mesh Bunny{"assets/Bunny.object"};
+  Mesh Plane{"assets/Plane.object"};
   Shader shader{"shader.vert", "shader.frag"};
 
   Camera camera;
   glfwSetWindowUserPointer(window, &camera);
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, MouseCallback);
+  auto const sphereScale = Vec3f<>::AsStorage{1.0F, 1.0F, 1.0F};
+  auto const bunnyScale = Vec3f<>::AsStorage{4.0F, 4.0F, 4.0F};
+  auto const planeScale = Vec3f<>::AsStorage{1.0F, 1.0F, 1.0F};
+  auto objects = std::array<ScreenObject, 3>{
+      ScreenObject{
+          &Sphere,
+          ModelMatrix(Vec3f<>::AsStorage{-4.0F, 0.0F, 0.0F}, sphereScale),
+          Vec3f<>::AsStorage{-4.0F, 0.0F, 0.0F},
+          Vec3f<>::AsStorage{1.0F, 0.0F, 0.0F},
+          sphereScale,
+          NormalMatrix(sphereScale),
+          Vec3f<>::AsStorage{0.75F, 0.35F, 0.12F},
+      },
+      ScreenObject{
+          &Bunny,
+          ModelMatrix(Vec3f<>::AsStorage{4.0F, 0.0F, 0.0F}, bunnyScale),
+          Vec3f<>::AsStorage{4.0F, 0.0F, 0.0F},
+          Vec3f<>::AsStorage{0.0F, 0.0F, 0.0F},
+          bunnyScale,
+          NormalMatrix(bunnyScale),
+          Vec3f<>::AsStorage{0.25F, 0.55F, 0.85F},
+      },
+      ScreenObject{
+          &Plane,
+          ModelMatrix(Vec3f<>::AsStorage{0.0F, -1.5F, 0.0F}, planeScale),
+          Vec3f<>::AsStorage{0.0F, -1.5F, 0.0F},
+          Vec3f<>::AsStorage{0.0F, 0.0F, 0.0F},
+          planeScale,
+          NormalMatrix(planeScale),
+          Vec3f<>::AsStorage{0.35F, 0.65F, 0.25F},
+      },
+  };
 
-  auto const model = Mat4f<>::AsStorage{
-      Vec4f<>::AsStorage{1.0F, 0.0F, 0.0F, 0.0F},
-      Vec4f<>::AsStorage{0.0F, 1.0F, 0.0F, 0.0F},
-      Vec4f<>::AsStorage{0.0F, 0.0F, 1.0F, 0.0F},
-      Vec4f<>::AsStorage{0.0F, 0.0F, 0.0F, 1.0F},
-  };
-  auto const normalMatrix = Mat3f<>::AsStorage{
-      Vec3f<>::AsStorage{1.0F, 0.0F, 0.0F},
-      Vec3f<>::AsStorage{0.0F, 1.0F, 0.0F},
-      Vec3f<>::AsStorage{0.0F, 0.0F, 1.0F},
-  };
-  auto const objectColor = Vec3f<>::AsStorage{0.75F, 0.35F, 0.12F};
   auto const lightPosition = Vec3f<>::AsStorage{2.0F, 3.0F, 2.0F};
 
   glEnable(GL_DEPTH_TEST);
@@ -199,14 +249,18 @@ void Main() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     shader.Use();
-    shader.Set("model", model);
     shader.Set("view", view);
     shader.Set("projection", projection);
-    shader.Set("normalMatrix", normalMatrix);
     shader.Set("viewPosition", camera.position);
     shader.Set("lightPosition", lightPosition);
-    shader.Set("objectColor", objectColor);
-    mesh.Draw();
+    for (auto &object : objects) {
+      object.model = ModelMatrix(object.position, object.scale);
+      shader.Set("model", object.model);
+      shader.Set("normalMatrix", object.normalMatrix);
+      shader.Set("objectColor", object.color);
+      object.mesh->Draw();
+      object.position += object.velocity * deltaTime;
+    }
 
     glfwSwapBuffers(window);
   }
