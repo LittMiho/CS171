@@ -1,0 +1,130 @@
+\documentclass[acmtog]{acmart}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{natbib}
+\usepackage{listings}
+\usepackage{bm}
+\usepackage{amsmath}
+
+\definecolor{blve}{rgb}{0.3372549, 0.61176471, 0.83921569}
+\definecolor{gr33n}{rgb}{0.29019608, 0.7372549, 0.64705882}
+\makeatletter
+\lst@InstallKeywords k{class}{classstyle}\slshape{classstyle}{}ld
+\makeatother
+\lstset{language=C++,
+  basicstyle=\ttfamily,
+  keywordstyle=\color{blve}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  commentstyle=\color{magenta}\ttfamily,
+  morecomment=[l][\color{magenta}]{\#},
+  classstyle = \bfseries\color{gr33n},
+  tabsize=2
+}
+\lstset{basicstyle=\ttfamily}
+
+% Title portion
+\title{Assignment 1:\\ {Exploring OpenGL Programming}}
+
+\author{Name: Xu Minhao\\ student number: 2024533139}
+
+% Document starts
+\begin{document}
+  \maketitle
+
+  \vspace*{2 ex}
+
+  \section{Introduction}
+  This assignment implements a small interactive OpenGL application for rendering a
+  three-dimensional mesh.  The program creates an OpenGL 3.3 core-profile
+  context, loads a sphere from an object file, and renders it with depth testing
+  and per-fragment lighting.  In addition to the basic rendering pipeline, the
+  application supports first-person camera movement, mouse-look control, and
+  keyboard rotation.  The main purpose of the assignment is to become familiar
+  with the relationship between CPU-side OpenGL resource management, shader
+  programs, vertex attributes, and the transformation pipeline.
+
+  \section{Implementation Details}
+  \subsection{Window and OpenGL Initialization}
+  The \texttt{Window} class wraps GLFW window creation.  It requests an OpenGL
+  3.3 core context, makes the context current, and initializes the OpenGL
+  function pointers through GLAD.  The initial viewport is obtained from the
+  framebuffer size, and a framebuffer-size callback updates the viewport when
+  the window is resized.  Vertical synchronization is enabled through
+  \texttt{glfwSwapInterval(1)}.
+
+  \subsection{Mesh Loading and Vertex Specification}
+  The \texttt{Mesh} class reads the vertex positions, vertex normals, and
+  triangle face records from the supplied \texttt{.object} file.  Each face is
+  expanded into three vertices, where every vertex stores a position and a
+  normal.  The data are uploaded to a vertex buffer object (VBO), while an
+  element buffer object (EBO) stores the indices of the triangles.  A vertex
+  array object (VAO) records the vertex layout:
+  attribute 0 contains three floating-point position values and attribute 1
+  contains three floating-point normal values.  During drawing, the VAO is
+  bound and \texttt{glDrawElements} renders the triangles.
+
+  \subsection{Shader Pipeline}
+  The vertex shader transforms each input position from model space to clip
+  space:
+  \[
+    \boldsymbol{p}_{clip}
+    = P V M
+      \begin{bmatrix}\boldsymbol{p}_{model}\\1\end{bmatrix}.
+  \]
+  It also transforms the normal with the normal matrix and passes the world
+  space position and normal to the fragment shader.  The fragment shader
+  computes ambient, diffuse, and specular terms.  In particular, the diffuse
+  term is based on the non-negative dot product between the normalized normal
+  and light direction, while the specular term uses the reflected light
+  direction and a shininess exponent of 32:
+  \[
+    I = k_a C +
+        k_d \max(\boldsymbol{n}\cdot\boldsymbol{l},0)C +
+        k_s \left(\max(\boldsymbol{v}\cdot\boldsymbol{r},0)\right)^{32}.
+  \]
+  The object color is orange-brown, and the light is placed at
+  $(2,3,2)$ in world space.
+
+  \subsection{Camera and Interaction}
+  The camera stores its position, viewing direction, yaw, and pitch.  The view
+  matrix is constructed from the camera's forward, right, and up vectors, which
+  are obtained using vector cross products and normalization.  A perspective
+  projection with a 45-degree vertical field of view, near plane 0.1, and far
+  plane 100.0 is recomputed using the current framebuffer aspect ratio.
+
+  The \texttt{W}, \texttt{A}, \texttt{S}, and \texttt{D} keys move the camera
+  relative to its viewing direction, while \texttt{E} and \texttt{Q} move it
+  along the world-up axis.  Movement is multiplied by frame time, so it is
+  independent of the frame rate.  The left and right arrow keys change yaw,
+  and the up and down arrow keys change pitch.  Mouse motion provides a second
+  way to control yaw and pitch; pitch is clamped to the interval
+  $[-89^\circ,89^\circ]$ to avoid the singularity when the camera looks
+  directly along the up axis.  Pressing Escape closes the window.
+
+  \section{Results}
+  When executed, the application opens a $1280\times720$ GLFW window and
+  renders the sphere against a blue-gray background.  The depth buffer is
+  enabled, so nearer parts of the sphere correctly occlude farther parts.
+  The lighting model produces a constant ambient contribution, a diffuse
+  shading gradient across the surface, and a visible specular highlight near
+  the reflection direction.  The rendered object remains correctly framed
+  when the window is resized because both the viewport and the projection
+  aspect ratio are updated.
+
+  The interactive camera can orbit and translate around the object using the
+  mouse and keyboard controls described above.  This also makes the effects of
+  the view matrix and perspective projection directly observable.  Overall,
+  the program demonstrates the complete path from mesh-file data, through
+  OpenGL buffers and shader stages, to a depth-tested, interactively viewed
+  image.
+
+  \section{Conclusion}
+  This assignment provided practical experience with the core components of an
+  OpenGL rendering pipeline.  The most important implementation details were
+  preserving the VAO/VBO/EBO state relationships, passing data between shader
+  stages with matching interfaces, and keeping the camera matrices and
+  framebuffer aspect ratio consistent.  The final program combines these
+  components into a compact interactive renderer with basic Phong-style
+  illumination.
+
+\end{document}
